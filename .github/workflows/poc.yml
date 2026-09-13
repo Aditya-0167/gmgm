@@ -1,0 +1,46 @@
+name: poc
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  run-poc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install tsx
+        run: npm install tsx
+
+      - name: Run the PoC (fails the job if the leak does not reproduce)
+        run: |
+          {
+            echo "=== gemini-cli MCP OAuth name-collision PoC result ==="
+            echo "Run: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } | tee result.txt
+          npx tsx poc_oauth_name_collision.ts 2>&1 | tee -a result.txt
+          grep -q "LEAK CONFIRMED" result.txt
+
+      - name: Independently verify the vulnerable lines still exist upstream
+        run: |
+          git clone --depth 1 https://github.com/google-gemini/gemini-cli.git /tmp/gemini-cli
+          echo "Cloned commit: $(git -C /tmp/gemini-cli rev-parse HEAD)" | tee -a result.txt
+          grep -n "return tokens.get(serverName) || null" /tmp/gemini-cli/packages/core/src/mcp/oauth-token-storage.ts | tee -a result.txt
+          grep -n "return token.accessToken" /tmp/gemini-cli/packages/core/src/mcp/oauth-provider.ts | tee -a result.txt
+          # Fail loudly if either line has disappeared (i.e. patched)
+          grep -q "return tokens.get(serverName) || null" /tmp/gemini-cli/packages/core/src/mcp/oauth-token-storage.ts
+          grep -q "return token.accessToken" /tmp/gemini-cli/packages/core/src/mcp/oauth-provider.ts
+
+      - name: Upload result file
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: poc-result
+          path: result.txt
